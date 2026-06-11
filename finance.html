@@ -1903,8 +1903,219 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     try { const raw = localStorage.getItem(key); return raw == null ? null : JSON.parse(raw); }
     catch (e) { return null; }
   }
+  const FINANCE_SUPABASE_URL = 'https://uvsxdjrcnegqysybjcvd.supabase.co';
+  const FINANCE_SUPABASE_KEY = 'sb_publishable_suJS8-ESdormxrbrkhk8hA_msmS08FM';
+  const FINANCE_ROW_KEY = 'finance';
+  const FINANCE_SYNC_MANIFEST_KEY = 'finance_sync_keys';
+  const FINANCE_SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  const FINANCE_KNOWN_KEYS = [
+    'finance_active_tab',
+    'nw_currency',
+    'nw:activity',
+    'nw:history',
+    'subs',
+    'wishlist',
+    'incoming_orders'
+  ];
+  const FINANCE_KEY_PREFIXES = ['nw:'];
+  const FINANCE_SYNC_EXCLUDED_KEYS = [FINANCE_SYNC_MANIFEST_KEY];
+  let financeSupa = null;
+  let financeSupaLoadPromise = null;
+  let financePushTimer = null;
+  let financeSuppressSync = false;
+  let financeLastSyncedJson = null;
+
+  const _financeOrigSet = localStorage.setItem.bind(localStorage);
+  const _financeOrigRemove = localStorage.removeItem.bind(localStorage);
+
+  function isFinanceSyncKey(key) {
+    return FINANCE_KNOWN_KEYS.indexOf(key) !== -1 ||
+      FINANCE_KEY_PREFIXES.some((prefix) => key.indexOf(prefix) === 0) ||
+      getFinanceManifest().indexOf(key) !== -1;
+  }
+
+  function shouldTrackFinanceKey(key) {
+    return key && FINANCE_SYNC_EXCLUDED_KEYS.indexOf(key) === -1;
+  }
+
+  function getFinanceManifest() {
+    try {
+      const raw = localStorage.getItem(FINANCE_SYNC_MANIFEST_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) { return []; }
+  }
+
+  function rememberFinanceKey(key) {
+    if (!shouldTrackFinanceKey(key)) return;
+    const manifest = getFinanceManifest();
+    if (manifest.indexOf(key) !== -1) return;
+    manifest.push(key);
+    try { _financeOrigSet(FINANCE_SYNC_MANIFEST_KEY, JSON.stringify(manifest)); } catch (e) {}
+  }
+
   function storeSet(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    try {
+      rememberFinanceKey(key);
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {}
+  }
+
+  localStorage.setItem = function(key, value) {
+    _financeOrigSet(key, value);
+    try {
+      if (!financeSuppressSync && shouldTrackFinanceKey(key)) {
+        rememberFinanceKey(key);
+        scheduleFinancePush();
+      }
+    } catch (e) {}
+  };
+  localStorage.removeItem = function(key) {
+    _financeOrigRemove(key);
+    try {
+      if (!financeSuppressSync && shouldTrackFinanceKey(key) && isFinanceSyncKey(key)) {
+        scheduleFinancePush();
+      }
+    } catch (e) {}
+  };
+
+  function collectFinanceState() {
+    const keys = new Set(FINANCE_KNOWN_KEYS.concat(getFinanceManifest()));
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && FINANCE_KEY_PREFIXES.some((prefix) => key.indexOf(prefix) === 0)) keys.add(key);
+      }
+    } catch (e) {}
+    const data = {};
+    keys.forEach((key) => {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return;
+      try { data[key] = JSON.parse(raw); } catch (e) {}
+    });
+    data[FINANCE_SYNC_MANIFEST_KEY] = Array.from(keys);
+    return data;
+  }
+
+  function loadFinanceSupabaseClient() {
+    if (window.supabase) return Promise.resolve(window.supabase);
+    if (financeSupaLoadPromise) return financeSupaLoadPromise;
+    financeSupaLoadPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src*="@supabase/supabase-js"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = FINANCE_SUPABASE_CDN;
+      script.onload = () => window.supabase ? resolve(window.supabase) : reject(new Error('Supabase failed to load'));
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return financeSupaLoadPromise;
+  }
+
+  async function getFinanceSupa() {
+    if (!FINANCE_SUPABASE_URL || !FINANCE_SUPABASE_KEY) return null;
+    if (FINANCE_SUPABASE_URL.indexOf('PASTE-') === 0 || FINANCE_SUPABASE_KEY.indexOf('PASTE-') === 0) return null;
+    if (window.__rowSupabaseClient) { financeSupa = window.__rowSupabaseClient; return financeSupa; }
+    if (financeSupa) return financeSupa;
+    await loadFinanceSupabaseClient();
+    financeSupa = window.supabase.createClient(FINANCE_SUPABASE_URL, FINANCE_SUPABASE_KEY);
+    window.__rowSupabaseClient = financeSupa;
+    return financeSupa;
+  }
+
+  function rerenderFinanceAfterSync() {
+    try {
+      const tab = storeGet('finance_active_tab');
+      if (tab && ['net','subs','incoming','wish'].includes(tab)) setActiveTab(tab);
+    } catch (e) {}
+    try { renderAllNetWorth(); } catch (e) {}
+    try { renderSubs(); } catch (e) {}
+    try { renderWishlist(); } catch (e) {}
+    try { renderOrders(); } catch (e) {}
+    try { safeRenderTicker(); } catch (e) {}
+  }
+
+  function applyRemoteFinanceState(remote) {
+    if (!remote || typeof remote !== 'object') return false;
+    financeSuppressSync = true;
+    let changed = false;
+    try {
+      const remoteKeys = Array.isArray(remote[FINANCE_SYNC_MANIFEST_KEY])
+        ? remote[FINANCE_SYNC_MANIFEST_KEY]
+        : Object.keys(remote).filter((key) => key !== FINANCE_SYNC_MANIFEST_KEY);
+      try { _financeOrigSet(FINANCE_SYNC_MANIFEST_KEY, JSON.stringify(remoteKeys)); } catch (e) {}
+      remoteKeys.forEach((key) => {
+        if (!(key in remote)) {
+          if (localStorage.getItem(key) != null) {
+            try { _financeOrigRemove(key); changed = true; } catch (e) {}
+          }
+          return;
+        }
+        const incoming = JSON.stringify(remote[key]);
+        if (localStorage.getItem(key) !== incoming) {
+          try { _financeOrigSet(key, incoming); changed = true; } catch (e) {}
+        }
+      });
+    } finally {
+      financeSuppressSync = false;
+    }
+    if (changed) rerenderFinanceAfterSync();
+    return changed;
+  }
+
+  async function pushFinanceNow() {
+    if (financeSuppressSync) return;
+    const state = collectFinanceState();
+    const json = JSON.stringify(state);
+    if (json === financeLastSyncedJson) return;
+    try {
+      const client = await getFinanceSupa();
+      if (!client) return;
+      const { error } = await client.from('app_state').upsert(
+        { key: FINANCE_ROW_KEY, data: state, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      if (!error) financeLastSyncedJson = json;
+    } catch (e) {}
+  }
+
+  function scheduleFinancePush() {
+    if (financeSuppressSync) return;
+    clearTimeout(financePushTimer);
+    financePushTimer = setTimeout(pushFinanceNow, 250);
+  }
+
+  async function startFinanceCloudSync() {
+    try {
+      const client = await getFinanceSupa();
+      if (!client) return;
+      const { data, error } = await client
+        .from('app_state').select('data').eq('key', FINANCE_ROW_KEY).maybeSingle();
+      if (!error && data && data.data && Object.keys(data.data).length > 0) {
+        applyRemoteFinanceState(data.data);
+        financeLastSyncedJson = JSON.stringify(collectFinanceState());
+      } else if (Object.keys(collectFinanceState()).length > 1) {
+        scheduleFinancePush();
+      }
+      client.channel('app_state_' + FINANCE_ROW_KEY)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'app_state',
+          filter: 'key=eq.' + FINANCE_ROW_KEY,
+        }, (payload) => {
+          if (!payload.new || !payload.new.data) return;
+          const incoming = JSON.stringify(payload.new.data);
+          if (incoming === financeLastSyncedJson) return;
+          applyRemoteFinanceState(payload.new.data);
+          financeLastSyncedJson = JSON.stringify(collectFinanceState());
+        })
+        .subscribe();
+    } catch (e) {}
   }
 
   // ============================================================
@@ -3381,6 +3592,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   }
   safeRenderTicker();
   setInterval(safeRenderTicker, 1500);
+  startFinanceCloudSync();
+  window.addEventListener('pagehide', pushFinanceNow);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pushFinanceNow();
+  });
 
 })();
 </script>
