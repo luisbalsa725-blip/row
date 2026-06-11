@@ -533,7 +533,20 @@ main {
   'use strict';
 
   const storeGet = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
-  const storeSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  function storeSet(k, v) {
+    localStorage.setItem(k, JSON.stringify(v));
+    scheduleHealthPush();
+  }
+
+  const HEALTH_SUPABASE_URL = 'https://uvsxdjrcnegqysybjcvd.supabase.co';
+  const HEALTH_SUPABASE_KEY = 'sb_publishable_suJS8-ESdormxrbrkhk8hA_msmS08FM';
+  const HEALTH_ROW_KEY = 'health';
+  const HEALTH_SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  let healthSupa = null;
+  let healthSupaLoadPromise = null;
+  let healthPushTimer = null;
+  let healthSuppressSync = false;
+  let healthLastSyncedJson = null;
 
   function getActiveDate() {
     const now = new Date();
@@ -660,6 +673,122 @@ main {
   function setTaken(map) { storeSet(todayKey, map); }
   function getLow() { return storeGet('stack:low') || []; }
   function setLow(arr) { storeSet('stack:low', arr); }
+
+  function healthStackKeys() {
+    return ['stack:version', 'stack:items', 'stack:low', todayKey];
+  }
+
+  function collectHealthStackState() {
+    const out = {};
+    healthStackKeys().forEach((k) => {
+      const raw = localStorage.getItem(k);
+      if (raw == null) return;
+      try { out[k] = JSON.parse(raw); } catch {}
+    });
+    return out;
+  }
+
+  function loadHealthSupabaseClient() {
+    if (window.supabase) return Promise.resolve(window.supabase);
+    if (healthSupaLoadPromise) return healthSupaLoadPromise;
+    healthSupaLoadPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src*="@supabase/supabase-js"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = HEALTH_SUPABASE_CDN;
+      script.onload = () => window.supabase ? resolve(window.supabase) : reject(new Error('Supabase failed to load'));
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return healthSupaLoadPromise;
+  }
+
+  async function getHealthSupa() {
+    if (!HEALTH_SUPABASE_URL || !HEALTH_SUPABASE_KEY) return null;
+    if (HEALTH_SUPABASE_URL.indexOf('PASTE-') === 0 || HEALTH_SUPABASE_KEY.indexOf('PASTE-') === 0) return null;
+    if (window.__rowSupabaseClient) { healthSupa = window.__rowSupabaseClient; return healthSupa; }
+    if (healthSupa) return healthSupa;
+    await loadHealthSupabaseClient();
+    healthSupa = window.supabase.createClient(HEALTH_SUPABASE_URL, HEALTH_SUPABASE_KEY);
+    window.__rowSupabaseClient = healthSupa;
+    return healthSupa;
+  }
+
+  function applyRemoteHealthStack(remote) {
+    if (!remote || typeof remote !== 'object') return false;
+    let changed = false;
+    healthSuppressSync = true;
+    try {
+      healthStackKeys().forEach((k) => {
+        if (!(k in remote)) return;
+        const incoming = JSON.stringify(remote[k]);
+        if (localStorage.getItem(k) !== incoming) {
+          try { localStorage.setItem(k, incoming); changed = true; } catch {}
+        }
+      });
+    } finally {
+      healthSuppressSync = false;
+    }
+    if (changed) render();
+    return changed;
+  }
+
+  async function pushHealthStackNow() {
+    if (healthSuppressSync) return;
+    const stackState = collectHealthStackState();
+    const json = JSON.stringify(stackState);
+    if (json === healthLastSyncedJson) return;
+    try {
+      const client = await getHealthSupa();
+      if (!client) return;
+      const { data } = await client
+        .from('app_state').select('data').eq('key', HEALTH_ROW_KEY).maybeSingle();
+      const current = (data && data.data && typeof data.data === 'object') ? data.data : {};
+      const merged = Object.assign({}, current, stackState);
+      const { error } = await client.from('app_state').upsert(
+        { key: HEALTH_ROW_KEY, data: merged, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+      if (!error) healthLastSyncedJson = json;
+    } catch {}
+  }
+
+  function scheduleHealthPush() {
+    if (healthSuppressSync) return;
+    clearTimeout(healthPushTimer);
+    healthPushTimer = setTimeout(pushHealthStackNow, 250);
+  }
+
+  async function startHealthCloudSync() {
+    try {
+      const client = await getHealthSupa();
+      if (!client) return;
+      const { data, error } = await client
+        .from('app_state').select('data').eq('key', HEALTH_ROW_KEY).maybeSingle();
+      if (!error && data && data.data) {
+        applyRemoteHealthStack(data.data);
+        healthLastSyncedJson = JSON.stringify(collectHealthStackState());
+      } else if (Object.keys(collectHealthStackState()).length > 0) {
+        scheduleHealthPush();
+      }
+      client.channel('app_state_' + HEALTH_ROW_KEY + '_stack')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'app_state',
+          filter: 'key=eq.' + HEALTH_ROW_KEY,
+        }, (payload) => {
+          if (!payload.new || !payload.new.data) return;
+          applyRemoteHealthStack(payload.new.data);
+          healthLastSyncedJson = JSON.stringify(collectHealthStackState());
+        })
+        .subscribe();
+    } catch {}
+  }
 
   function toggleTaken(id) {
     const taken = getTaken();
@@ -1035,12 +1164,16 @@ main {
 
   setInterval(() => {
     const newKey = `stack:taken:${getActiveDate()}`;
-    if (newKey !== todayKey) todayKey = newKey;
+    if (newKey !== todayKey) {
+      todayKey = newKey;
+      startHealthCloudSync();
+    }
     render();
   }, 60 * 1000);
 
   render();
   startTicker();
+  startHealthCloudSync();
 })();
 </script>
 

@@ -13,6 +13,24 @@
   // -------- Supabase config (replace with your own project URL + publishable key) --------
   const TOPBAR_SUPABASE_URL = 'https://uvsxdjrcnegqysybjcvd.supabase.co';
   const TOPBAR_SUPABASE_KEY = 'sb_publishable_suJS8-ESdormxrbrkhk8hA_msmS08FM';
+  const WATER_KEY = 'po_water_v1';
+  const HEALTH_ROW_KEY = 'health';
+  const SUPABASE_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+
+  const origSetItem = localStorage.setItem.bind(localStorage);
+  const origRemoveItem = localStorage.removeItem.bind(localStorage);
+  let supa = null;
+  let supabaseLoadPromise = null;
+  let syncStarted = false;
+  let suppressWaterPush = false;
+  let waterPushTimer = null;
+  let lastSyncedWaterJson = null;
+  let waterChannel = null;
+
+  try {
+    waterChannel = new BroadcastChannel(WATER_KEY);
+    waterChannel.onmessage = () => notifyWaterChanged(false);
+  } catch (e) {}
 
   // -------- CSS --------
   const css = `
@@ -228,7 +246,7 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
   }
   function getWaterProgress() {
     let state = null;
-    try { state = JSON.parse(localStorage.getItem('po_water_v1')); } catch (e) {}
+    try { state = JSON.parse(localStorage.getItem(WATER_KEY)); } catch (e) {}
     if (!state) return { done: 0, total: 0 };
     const todayKey = calendarDateKey();
     const done = (state.logs || {})[todayKey] || 0;
@@ -274,6 +292,14 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
     setPillStatus(waterEl, classifyStatus(w.done, w.total));
   }
 
+  function notifyWaterChanged(shouldBroadcast) {
+    render();
+    try { window.dispatchEvent(new CustomEvent('po-water-sync')); } catch (e) {}
+    if (shouldBroadcast && waterChannel) {
+      try { waterChannel.postMessage({ key: WATER_KEY, t: Date.now() }); } catch (e) {}
+    }
+  }
+
   function defaultWaterState() {
     return {
       unit: 'bottle', bottleMl: 500, glassMl: 250, weightUnit: 'kg',
@@ -281,35 +307,144 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
       caffeineMgPerDay: 200, substances: [], logs: {}
     };
   }
-  async function pushWaterMergedToSupabase(localWater) {
-    if (window.location.pathname.endsWith('/health.html') ||
-        window.location.pathname.endsWith('health.html')) return;
-    if (!window.supabase || !TOPBAR_SUPABASE_URL || !TOPBAR_SUPABASE_KEY) return;
-    if (TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0) return;
+  function loadSupabaseClient() {
+    if (window.supabase) return Promise.resolve(window.supabase);
+    if (supabaseLoadPromise) return supabaseLoadPromise;
+    supabaseLoadPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[src*="@supabase/supabase-js"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.supabase), { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = SUPABASE_CDN;
+      script.onload = () => window.supabase ? resolve(window.supabase) : reject(new Error('Supabase failed to load'));
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return supabaseLoadPromise;
+  }
+
+  async function getSupa() {
+    if (!TOPBAR_SUPABASE_URL || !TOPBAR_SUPABASE_KEY) return null;
+    if (TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0 || TOPBAR_SUPABASE_KEY.indexOf('PASTE-') === 0) return null;
+    if (window.__rowSupabaseClient) { supa = window.__rowSupabaseClient; return supa; }
+    if (supa) return supa;
+    await loadSupabaseClient();
+    supa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
+    window.__rowSupabaseClient = supa;
+    return supa;
+  }
+
+  function readLocalWaterJson() {
+    return localStorage.getItem(WATER_KEY);
+  }
+
+  function readLocalWater() {
+    const raw = readLocalWaterJson();
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  }
+
+  function applyRemoteWater(remoteWater) {
+    const incoming = remoteWater == null ? null : JSON.stringify(remoteWater);
+    if (incoming === readLocalWaterJson()) return;
+    suppressWaterPush = true;
     try {
-      const supa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
-      const { data } = await supa
-        .from('app_state').select('data').eq('key', 'health').maybeSingle();
-      const current = (data && data.data) || {};
-      const merged = Object.assign({}, current, { po_water_v1: localWater });
-      await supa.from('app_state').upsert(
-        { key: 'health', data: merged, updated_at: new Date().toISOString() },
+      if (incoming == null) origRemoveItem(WATER_KEY);
+      else origSetItem(WATER_KEY, incoming);
+      lastSyncedWaterJson = incoming;
+    } finally {
+      suppressWaterPush = false;
+    }
+    notifyWaterChanged(true);
+  }
+
+  async function pushWaterMergedToSupabase(localWater) {
+    if (suppressWaterPush) return;
+    const localJson = localWater == null ? null : JSON.stringify(localWater);
+    if (localJson === lastSyncedWaterJson) return;
+    try {
+      const client = await getSupa();
+      if (!client) return;
+      const { data } = await client
+        .from('app_state').select('data').eq('key', HEALTH_ROW_KEY).maybeSingle();
+      const current = (data && data.data && typeof data.data === 'object') ? data.data : {};
+      const merged = Object.assign({}, current);
+      if (localWater == null) delete merged[WATER_KEY];
+      else merged[WATER_KEY] = localWater;
+      const { error } = await client.from('app_state').upsert(
+        { key: HEALTH_ROW_KEY, data: merged, updated_at: new Date().toISOString() },
         { onConflict: 'key' }
       );
+      if (!error) lastSyncedWaterJson = localJson;
     } catch (e) {}
   }
+
+  function scheduleWaterPush() {
+    if (suppressWaterPush) return;
+    clearTimeout(waterPushTimer);
+    waterPushTimer = setTimeout(() => pushWaterMergedToSupabase(readLocalWater()), 250);
+  }
+
+  function installWaterStorageHooks() {
+    localStorage.setItem = function(k, v) {
+      origSetItem(k, v);
+      if (k === WATER_KEY) {
+        notifyWaterChanged(true);
+        scheduleWaterPush();
+      }
+    };
+    localStorage.removeItem = function(k) {
+      origRemoveItem(k);
+      if (k === WATER_KEY) {
+        notifyWaterChanged(true);
+        scheduleWaterPush();
+      }
+    };
+  }
+
+  async function startWaterCloudSync() {
+    if (isFinancePage() || syncStarted) return;
+    syncStarted = true;
+    installWaterStorageHooks();
+    try {
+      const client = await getSupa();
+      if (!client) return;
+      const { data, error } = await client
+        .from('app_state').select('data').eq('key', HEALTH_ROW_KEY).maybeSingle();
+      const remoteWater = !error && data && data.data ? data.data[WATER_KEY] : null;
+      if (remoteWater) {
+        applyRemoteWater(remoteWater);
+      } else if (readLocalWater()) {
+        scheduleWaterPush();
+      }
+      client.channel('app_state_' + HEALTH_ROW_KEY + '_water')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'app_state',
+          filter: 'key=eq.' + HEALTH_ROW_KEY,
+        }, (payload) => {
+          if (!payload.new || !payload.new.data) return;
+          applyRemoteWater(payload.new.data[WATER_KEY] || null);
+        })
+        .subscribe();
+    } catch (e) {}
+  }
+
   function addWater() {
     let state = null;
-    try { state = JSON.parse(localStorage.getItem('po_water_v1')); } catch (e) {}
+    try { state = JSON.parse(localStorage.getItem(WATER_KEY)); } catch (e) {}
     if (!state || typeof state !== 'object') state = defaultWaterState();
     state.logs = state.logs || {};
     const k = calendarDateKey();
     state.logs[k] = (state.logs[k] || 0) + 1;
-    try { localStorage.setItem('po_water_v1', JSON.stringify(state)); } catch (e) {}
+    try { localStorage.setItem(WATER_KEY, JSON.stringify(state)); } catch (e) {}
     render();
     const btn = document.getElementById('topbarWaterAdd');
     if (btn) { btn.classList.add('flash'); setTimeout(() => btn.classList.remove('flash'), 220); }
-    pushWaterMergedToSupabase(state);
   }
 
   function blockGesture(e) { e.preventDefault(); }
@@ -342,6 +477,7 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
   }
 
   function boot() {
+    startWaterCloudSync();
     injectStyleAndHTML();
     const btn = document.getElementById('topbarWaterAdd');
     if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); addWater(); });
