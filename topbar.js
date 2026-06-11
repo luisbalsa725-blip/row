@@ -22,7 +22,11 @@
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; gap: 6px;
-  padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+  padding:
+    max(12px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(10px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
   /* Fully opaque so each page's body background can't bleed through
      and tint the bar a different color. Matches the dashboard's base
      dark background so the bar feels continuous with the page chrome. */
@@ -110,7 +114,11 @@
 }
 
 @media (max-width: 480px) {
-  .topbar { padding-left: 10px; padding-right: 10px; gap: 4px; }
+  .topbar {
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    gap: 4px;
+  }
   .topbar-pill, .topbar-water-pill { padding: 7px 9px; gap: 5px; }
   .topbar-pill-label { font-size: 9px; letter-spacing: 0.10em; }
   .topbar-pill-count { font-size: 11px; }
@@ -159,7 +167,9 @@ body.topbar-modal-open {
     height: 100vh !important;
     border-radius: 0 !important;
     padding-top: max(20px, env(safe-area-inset-top)) !important;
+    padding-right: max(20px, env(safe-area-inset-right)) !important;
     padding-bottom: max(28px, env(safe-area-inset-bottom)) !important;
+    padding-left: max(20px, env(safe-area-inset-left)) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
   }

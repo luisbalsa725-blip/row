@@ -124,7 +124,11 @@ html, body {
 .po-shell {
   width: 100%; max-width: min(720px, 100vw);
   margin: 0 auto;
-  padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    calc(40px + env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
   box-sizing: border-box;
 }
 /* Defeat the default `min-width: auto` on flex/grid items — without
@@ -143,7 +147,7 @@ img, video, canvas, svg { max-width: 100%; }
   z-index: 50;
   display: flex;
   justify-content: center;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: linear-gradient(180deg, rgba(10,10,11,0) 0%, rgba(10,10,11,0.78) 38%, rgba(10,10,11,0.94) 100%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -543,7 +547,11 @@ img, video, canvas, svg { max-width: 100%; }
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
   z-index: 100; align-items: center; justify-content: center;
-  padding: 24px;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
 }
 .po-modal-bg.show { display: flex; }
 .po-modal {
@@ -677,7 +685,13 @@ img, video, canvas, svg { max-width: 100%; }
 
 @media (max-width: 480px) {
   /* === Mobile / iPhone polish === */
-  .po-shell { padding: 14px 10px calc(32px + env(safe-area-inset-bottom)); }
+  .po-shell {
+    padding:
+      max(14px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      calc(32px + env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
 
   /* Header — smaller title so the gear button never gets clipped */
   .po-title { font-size: 18px; letter-spacing: -0.01em; }
@@ -715,7 +729,13 @@ img, video, canvas, svg { max-width: 100%; }
   .po-rx-headline { font-size: 22px; }
 
   /* Modals — never wider than the viewport minus a comfortable gutter */
-  .po-modal-bg { padding: 16px; }
+  .po-modal-bg {
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      max(16px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
+  }
   .po-modal { padding: 18px; max-height: 86vh; max-width: calc(100vw - 32px); }
 
   /* Today's / Past workouts — tighter rows, allow text to wrap */
@@ -728,7 +748,10 @@ img, video, canvas, svg { max-width: 100%; }
 
   /* Bottom tab bar — slightly smaller pills so both labels always fit */
   .tab { padding: 11px 10px; font-size: 13px; }
-  .tabbar { padding-left: 12px; padding-right: 12px; }
+  .tabbar {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
 }
 
 /* Anything narrower than ~360px (iPhone SE / mini) gets a final pass */
@@ -1074,7 +1097,11 @@ img, video, canvas, svg { max-width: 100%; }
 .wt-overlay.is-open { transform: translateY(0); }
 .wt-overlay-inner {
   max-width: 720px; margin: 0 auto;
-  padding: 24px 20px 40px;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(40px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
 }
 .wt-overlay-h {
   display: flex; align-items: center; gap: 14px;
@@ -1178,7 +1205,11 @@ img, video, canvas, svg { max-width: 100%; }
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
   display: flex; flex-direction: column;
-  padding: 24px 16px;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
 }
 .wt-viewer.is-open { opacity: 1; pointer-events: auto; }
 .wt-viewer-stage {

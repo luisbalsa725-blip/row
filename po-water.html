@@ -82,7 +82,14 @@ html, body {
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
-.shell { max-width: 720px; margin: 0 auto; padding: 24px 16px 80px; }
+.shell {
+  max-width: 720px; margin: 0 auto;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(80px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
 
 /* ----- Top day pill + header ----- */
 .day-pill {
@@ -290,7 +297,12 @@ html, body {
 .modal-bg {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
-  z-index: 100; align-items: center; justify-content: center; padding: 20px;
+  z-index: 100; align-items: center; justify-content: center;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
 }
 .modal-bg.show { display: flex; }
 .modal {
@@ -451,7 +463,13 @@ html, body {
 .modal-actions .btn-primary { flex: 1; }
 
 @media (max-width: 480px) {
-  .shell { padding: 16px 12px 60px; }
+  .shell {
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(12px, env(safe-area-inset-right))
+      max(60px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
   .water-num { font-size: 48px; }
 }
 </style>
@@ -1103,6 +1121,8 @@ html, body {
 .modal-bg {
   padding-bottom: max(20px, env(safe-area-inset-bottom));
   padding-top: max(20px, env(safe-area-inset-top));
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
 }
 .modal {
   max-height: calc(88vh - env(safe-area-inset-bottom));
