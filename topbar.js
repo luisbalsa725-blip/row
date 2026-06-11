@@ -1,4 +1,4 @@
-﻿// =============================================================
+// =============================================================
 // Persistent dashboard top bar.
 // Drop this on any page with:
 //     <script src="topbar.js" defer></script>
