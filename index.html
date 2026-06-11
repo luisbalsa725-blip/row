@@ -69,8 +69,15 @@ body::after {
   max-width: 1100px;
   margin: 0 auto;
 }
-.dash-title {
+.page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin: 0 0 14px;
+}
+.dash-title {
+  margin: 0;
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -80,6 +87,32 @@ body::after {
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+.settings-btn {
+  flex: 0 0 auto;
+  width: 42px; height: 42px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.10s ease;
+}
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.settings-btn-icon {
+  display: inline-block;
+  line-height: 1;
+  filter: grayscale(100%) brightness(1.25);
+  transition: transform 0.12s ease;
+}
+.settings-btn:active { transform: scale(0.97); }
+.settings-btn:active .settings-btn-icon { transform: rotate(18deg) translateY(1px); }
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -161,6 +194,146 @@ body::after {
 }
 .tile:hover .tile-arrow { transform: translateX(4px); }
 
+.modal-bg {
+  display: none;
+  position: fixed; inset: 0;
+  z-index: 100;
+  align-items: center; justify-content: center;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  background: rgba(0,0,0,0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.modal-bg.show { display: flex; }
+.modal {
+  width: min(100%, 480px);
+  max-height: min(760px, 88vh);
+  overflow-y: auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 17, 19, 0.92);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.55);
+  padding: 22px;
+  color: var(--text-primary);
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.modal-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.modal-close {
+  width: 36px; height: 36px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.modal-close:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+.settings-form {
+  display: grid;
+  gap: 14px;
+}
+.field {
+  display: grid;
+  gap: 8px;
+}
+.field-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.field-row.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.input {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 15px;
+  padding: 11px 12px;
+  outline: none;
+}
+.input:focus { border-color: rgba(255,255,255,0.18); }
+.seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.035);
+}
+.seg-btn {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.seg-btn.active {
+  background: rgba(255,255,255,0.10);
+  color: var(--text-primary);
+}
+.save-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.save-btn {
+  flex: 1;
+  border: 1px solid rgba(107, 227, 164, 0.28);
+  border-radius: 12px;
+  background: rgba(107, 227, 164, 0.14);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 800;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.save-btn:hover { background: rgba(107, 227, 164, 0.20); }
+.save-status {
+  flex: 0 0 auto;
+  min-width: 70px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.save-status.show { opacity: 1; }
+
 @media (max-width: 720px) {
   .bento-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tile.big { grid-column: span 2; grid-row: span 1; }
@@ -177,7 +350,12 @@ body::after {
 </head>
 <body>
 <main class="page">
-  <h1 class="dash-title">Dashboard</h1>
+  <div class="page-head">
+    <h1 class="dash-title">Dashboard</h1>
+    <button class="settings-btn" id="settingsBtn" type="button" aria-label="Open settings">
+      <span class="settings-btn-icon">⚙</span>
+    </button>
+  </div>
   <section class="bento-grid" aria-label="Dashboard sections">
     <a class="tile big" href="main.html" style="--accent:#6BE3A4">
       <span class="tile-num">·01</span>
@@ -231,5 +409,233 @@ body::after {
     </a>
   </section>
 </main>
+
+<div class="modal-bg" id="settingsModalBg" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-head">
+      <h2 class="modal-title" id="settingsTitle">Your Data</h2>
+      <button class="modal-close" id="settingsClose" type="button" aria-label="Close">×</button>
+    </div>
+    <form class="settings-form" id="settingsForm">
+      <label class="field">
+        <span class="field-label">Height</span>
+        <span class="field-row" id="heightCmRow">
+          <input class="input" id="heightCm" type="number" min="0" step="1" inputmode="decimal">
+          <span class="seg" role="group" aria-label="Height unit">
+            <button class="seg-btn active" type="button" data-height-unit="cm">cm</button>
+            <button class="seg-btn" type="button" data-height-unit="ftin">ft/in</button>
+          </span>
+        </span>
+        <span class="field-row two" id="heightFtRow" hidden>
+          <input class="input" id="heightFt" type="number" min="0" step="1" inputmode="numeric" aria-label="Height feet">
+          <input class="input" id="heightIn" type="number" min="0" step="0.5" inputmode="decimal" aria-label="Height inches">
+          <span class="seg" role="group" aria-label="Height unit">
+            <button class="seg-btn" type="button" data-height-unit="cm">cm</button>
+            <button class="seg-btn active" type="button" data-height-unit="ftin">ft/in</button>
+          </span>
+        </span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Weight</span>
+        <span class="field-row">
+          <input class="input" id="weightValue" type="number" min="0" step="0.1" inputmode="decimal">
+          <span class="seg" role="group" aria-label="Weight unit">
+            <button class="seg-btn active" type="button" data-weight-unit="kg">kg</button>
+            <button class="seg-btn" type="button" data-weight-unit="lb">lb</button>
+          </span>
+        </span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Age</span>
+        <input class="input" id="ageValue" type="number" min="0" step="1" inputmode="numeric">
+      </label>
+
+      <div class="field">
+        <span class="field-label">Sex</span>
+        <span class="seg" role="group" aria-label="Sex">
+          <button class="seg-btn active" type="button" data-sex="m">Male</button>
+          <button class="seg-btn" type="button" data-sex="f">Female</button>
+        </span>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Active hours / week</span>
+        <input class="input" id="activityValue" type="number" min="0" step="0.5" inputmode="decimal">
+      </label>
+
+      <div class="save-row">
+        <button class="save-btn" type="submit">Save</button>
+        <span class="save-status" id="saveStatus">Saved ✓</span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const WATER_KEY = 'po_water_v1';
+  const defaults = {
+    unit: 'bottle',
+    bottleMl: 500,
+    glassMl: 250,
+    weightUnit: 'kg',
+    heightUnit: 'cm',
+    profile: {
+      weightKg: 75,
+      heightCm: 175,
+      age: 25,
+      sex: 'm',
+      activityHrsPerWeek: 5
+    },
+    caffeineMgPerDay: 200,
+    substances: [],
+    logs: {}
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const modalBg = $('settingsModalBg');
+  const form = $('settingsForm');
+  let heightUnit = 'cm';
+  let weightUnit = 'kg';
+  let sex = 'm';
+  let saveTimer = null;
+
+  function loadWaterState() {
+    let state = {};
+    try { state = JSON.parse(localStorage.getItem(WATER_KEY)) || {}; } catch (e) {}
+    state.profile = Object.assign({}, defaults.profile, state.profile || {});
+    state.logs = (state.logs && typeof state.logs === 'object') ? state.logs : {};
+    state.substances = Array.isArray(state.substances) ? state.substances : (defaults.substances || []);
+    return Object.assign({}, defaults, state, { profile: state.profile, logs: state.logs, substances: state.substances });
+  }
+
+  function round(value, places) {
+    const m = Math.pow(10, places);
+    return Math.round((Number(value) || 0) * m) / m;
+  }
+  function kgToLb(kg) { return (Number(kg) || 0) * 2.20462; }
+  function lbToKg(lb) { return (Number(lb) || 0) / 2.20462; }
+  function cmToTotalIn(cm) { return (Number(cm) || 0) / 2.54; }
+  function totalInToCm(totalIn) { return (Number(totalIn) || 0) * 2.54; }
+  function currentHeightCm() {
+    if (heightUnit === 'cm') return Number($('heightCm').value) || 0;
+    return totalInToCm((Number($('heightFt').value) || 0) * 12 + (Number($('heightIn').value) || 0));
+  }
+
+  function setActive(selector, value, attr) {
+    document.querySelectorAll(selector).forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute(attr) === value);
+    });
+  }
+
+  function setHeightUnit(nextUnit) {
+    const cm = currentHeightCm();
+    heightUnit = nextUnit;
+    $('heightCmRow').hidden = heightUnit !== 'cm';
+    $('heightFtRow').hidden = heightUnit !== 'ftin';
+    setActive('[data-height-unit]', heightUnit, 'data-height-unit');
+    if (heightUnit === 'cm') {
+      $('heightCm').value = cm ? String(Math.round(cm)) : '';
+    } else {
+      const totalIn = cmToTotalIn(cm);
+      const ft = Math.floor(totalIn / 12);
+      const inches = round(totalIn - ft * 12, 1);
+      $('heightFt').value = cm ? String(ft) : '';
+      $('heightIn').value = cm ? String(inches) : '';
+    }
+  }
+
+  function setWeightUnit(nextUnit) {
+    if (weightUnit === nextUnit) return;
+    const shown = Number($('weightValue').value) || 0;
+    const kg = weightUnit === 'lb' ? lbToKg(shown) : shown;
+    weightUnit = nextUnit;
+    setActive('[data-weight-unit]', weightUnit, 'data-weight-unit');
+    const next = weightUnit === 'lb' ? kgToLb(kg) : kg;
+    $('weightValue').value = next ? String(round(next, 1)) : '';
+  }
+
+  function setSex(nextSex) {
+    sex = nextSex === 'f' ? 'f' : 'm';
+    setActive('[data-sex]', sex, 'data-sex');
+  }
+
+  function openSettings() {
+    const state = loadWaterState();
+    weightUnit = state.weightUnit === 'lb' ? 'lb' : 'kg';
+    heightUnit = state.profile.heightUnit === 'ftin' || state.heightUnit === 'ftin' ? 'ftin' : 'cm';
+    sex = state.profile.sex === 'f' ? 'f' : 'm';
+
+    const weightKg = Number(state.profile.weightKg) || defaults.profile.weightKg;
+    $('weightValue').value = String(round(weightUnit === 'lb' ? kgToLb(weightKg) : weightKg, 1));
+    $('ageValue').value = String(Number(state.profile.age) || defaults.profile.age);
+    $('activityValue').value = String(Number(state.profile.activityHrsPerWeek) || defaults.profile.activityHrsPerWeek);
+    setActive('[data-weight-unit]', weightUnit, 'data-weight-unit');
+    setSex(sex);
+
+    $('heightCm').value = String(Math.round(Number(state.profile.heightCm) || defaults.profile.heightCm));
+    heightUnit = 'cm';
+    setHeightUnit(state.profile.heightUnit === 'ftin' || state.heightUnit === 'ftin' ? 'ftin' : 'cm');
+
+    $('saveStatus').classList.remove('show');
+    modalBg.classList.add('show');
+    modalBg.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeSettings() {
+    modalBg.classList.remove('show');
+    modalBg.setAttribute('aria-hidden', 'true');
+  }
+
+  function saveSettings() {
+    const state = loadWaterState();
+    const shownWeight = Number($('weightValue').value) || 0;
+    const weightKg = weightUnit === 'lb' ? lbToKg(shownWeight) : shownWeight;
+    const profile = Object.assign({}, state.profile, {
+      weightKg,
+      heightCm: currentHeightCm(),
+      heightUnit,
+      age: Number($('ageValue').value) || 0,
+      sex,
+      activityHrsPerWeek: Number($('activityValue').value) || 0
+    });
+    const nextState = Object.assign({}, state, {
+      weightUnit,
+      heightUnit,
+      profile,
+      logs: state.logs || {}
+    });
+    try { localStorage.setItem(WATER_KEY, JSON.stringify(nextState)); } catch (e) {}
+    const status = $('saveStatus');
+    status.classList.add('show');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => status.classList.remove('show'), 1800);
+  }
+
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('settingsClose').addEventListener('click', closeSettings);
+  modalBg.addEventListener('click', (e) => { if (e.target === modalBg) closeSettings(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalBg.classList.contains('show')) closeSettings();
+  });
+  document.querySelectorAll('[data-height-unit]').forEach((btn) => {
+    btn.addEventListener('click', () => setHeightUnit(btn.dataset.heightUnit));
+  });
+  document.querySelectorAll('[data-weight-unit]').forEach((btn) => {
+    btn.addEventListener('click', () => setWeightUnit(btn.dataset.weightUnit));
+  });
+  document.querySelectorAll('[data-sex]').forEach((btn) => {
+    btn.addEventListener('click', () => setSex(btn.dataset.sex));
+  });
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveSettings();
+  });
+})();
+</script>
 </body>
 </html>
