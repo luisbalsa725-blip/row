@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
 <title>My Dashboard</title>
+<script src="sync.js"></script>
 <script src="topbar.js" defer></script>
 <style>
 :root {
@@ -721,7 +722,12 @@ body::after {
       window.dispatchEvent(new CustomEvent('goals-changed'));
     }
   }
-  function storeDelete(key) { try { localStorage.removeItem(key); } catch (e) {} }
+  function storeDelete(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
+    if (typeof key === 'string' && key.indexOf('goals:') === 0) {
+      window.dispatchEvent(new CustomEvent('goals-changed'));
+    }
+  }
   function storeListKeys(prefix) {
     const out = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -1313,6 +1319,25 @@ body::after {
   window.addEventListener('storage', () => {
     loadToday(); loadTomorrow(); renderStreak();
   });
+
+  function refreshAfterGoalSync() {
+    rollover();
+    processStreak();
+    loadToday();
+    loadTomorrow();
+    renderStreak();
+    cycleIdx = 0;
+    tick();
+  }
+
+  if (window.initCloudSync) {
+    window.initCloudSync({
+      appKey: 'goals',
+      syncedKeys: ['goal_streak_v1'],
+      syncedPrefixes: ['goals:'],
+      onApplied: refreshAfterGoalSync
+    });
+  }
 })();
 </script>
 </body>

@@ -675,7 +675,14 @@ main {
   function setLow(arr) { storeSet('stack:low', arr); }
 
   function healthStackKeys() {
-    return ['stack:version', 'stack:items', 'stack:low', todayKey];
+    const keys = new Set(['stack:version', 'stack:items', 'stack:low', todayKey]);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('stack:taken:') === 0) keys.add(k);
+      }
+    } catch {}
+    return Array.from(keys);
   }
 
   function collectHealthStackState() {
@@ -723,8 +730,18 @@ main {
     let changed = false;
     healthSuppressSync = true;
     try {
-      healthStackKeys().forEach((k) => {
-        if (!(k in remote)) return;
+      const keys = new Set(healthStackKeys());
+      Object.keys(remote).forEach((k) => {
+        if (k.indexOf('stack:') === 0) keys.add(k);
+      });
+      keys.forEach((k) => {
+        if (k.indexOf('stack:') !== 0) return;
+        if (!(k in remote)) {
+          if (k.indexOf('stack:taken:') === 0 && localStorage.getItem(k) != null) {
+            try { localStorage.removeItem(k); changed = true; } catch {}
+          }
+          return;
+        }
         const incoming = JSON.stringify(remote[k]);
         if (localStorage.getItem(k) !== incoming) {
           try { localStorage.setItem(k, incoming); changed = true; } catch {}
@@ -771,6 +788,7 @@ main {
         .from('app_state').select('data').eq('key', HEALTH_ROW_KEY).maybeSingle();
       if (!error && data && data.data) {
         applyRemoteHealthStack(data.data);
+        todayKey = `stack:taken:${getActiveDate()}`;
         healthLastSyncedJson = JSON.stringify(collectHealthStackState());
       } else if (Object.keys(collectHealthStackState()).length > 0) {
         scheduleHealthPush();
