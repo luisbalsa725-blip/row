@@ -31,6 +31,9 @@
     waterChannel = new BroadcastChannel(WATER_KEY);
     waterChannel.onmessage = () => notifyWaterChanged(false);
   } catch (e) {}
+  window.addEventListener('message', (e) => {
+    if (e && e.data && e.data.type === 'po-water-sync') notifyWaterChanged(false);
+  });
 
   // -------- CSS --------
   const css = `

@@ -723,6 +723,20 @@ html, body {
   }
   function saveState() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    notifyWaterSaved();
+  }
+  function notifyWaterSaved() {
+    try { window.dispatchEvent(new CustomEvent('po-water-sync')); } catch (e) {}
+    try {
+      const channel = new BroadcastChannel(LS_KEY);
+      channel.postMessage({ key: LS_KEY, t: Date.now() });
+      channel.close();
+    } catch (e) {}
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'po-water-sync', key: LS_KEY, t: Date.now() }, '*');
+      }
+    } catch (e) {}
   }
   let state = loadState();
   $('appTitle').textContent = CONFIG.appTitle || 'Water Coach';
@@ -1097,6 +1111,7 @@ html, body {
   $('setReset').addEventListener('click', () => {
     if (!confirm('Wipe ALL water logs and settings? This cannot be undone.')) return;
     localStorage.removeItem(LS_KEY);
+    notifyWaterSaved();
     state = loadState();
     $('setModalBg').classList.remove('show');
     renderAll();

@@ -407,6 +407,17 @@ body::after {
         <span class="tile-arrow">→</span>
       </span>
     </a>
+
+    <a class="tile wide" href="caffeine.html" style="--accent:#C084FC">
+      <span class="tile-num">·06</span>
+      <span class="tile-icon">☕</span>
+      <span class="tile-spacer"></span>
+      <h2 class="tile-title">Caffeine</h2>
+      <span class="tile-footer">
+        <span class="tile-subtitle">Peak, crash, clearance</span>
+        <span class="tile-arrow">→</span>
+      </span>
+    </a>
   </section>
 </main>
 
@@ -610,6 +621,12 @@ body::after {
       logs: state.logs || {}
     });
     try { localStorage.setItem(WATER_KEY, JSON.stringify(nextState)); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('po-water-sync')); } catch (e) {}
+    try {
+      const channel = new BroadcastChannel(WATER_KEY);
+      channel.postMessage({ key: WATER_KEY, t: Date.now() });
+      channel.close();
+    } catch (e) {}
     const status = $('saveStatus');
     status.classList.add('show');
     clearTimeout(saveTimer);

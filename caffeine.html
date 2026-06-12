@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Caffeine Tracker</title>
+<script src="lock.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js"></script>
+<script src="topbar.js" defer></script>
+<style>
+:root {
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --success: #6BE3A4;
+  --warning: #F2C063;
+  --danger: #FF6B6B;
+  --accent: #C084FC;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #050506;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  padding:
+    max(28px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    max(86px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(192, 132, 252, 0.16), transparent 45%),
+    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -2;
+  animation: drift 36s ease-in-out infinite alternate;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes drift {
+  0% { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-22px, 14px, 0); }
+}
+.page { max-width: 1100px; margin: 0 auto; }
+.page-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; margin-bottom: 14px;
+}
+.dash-title {
+  margin: 0;
+  font-size: 28px; font-weight: 700;
+  letter-spacing: -0.025em;
+  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.back-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary); text-decoration: none;
+  font-size: 12px; font-weight: 700;
+}
+.section-title {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 12px;
+  margin: 18px 0 12px;
+}
+.section-title::before {
+  content: ''; width: 18px; height: 1px;
+  background: var(--text-tertiary); opacity: 0.6;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent);
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 14px;
+}
+.gm-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 14px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.gm-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 14px;
+}
+.gm-eyebrow {
+  font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 6px;
+}
+.gm-progress-row { display: flex; align-items: baseline; gap: 6px; }
+.gm-progress-num {
+  font-size: 48px; font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.045em; color: var(--text-primary); line-height: 1;
+}
+.gm-progress-total { font-family: var(--font-mono); font-size: 18px; color: var(--text-tertiary); }
+.gm-streak {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--text-tertiary);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.10em; text-transform: uppercase;
+}
+.gm-streak.warn { color: var(--warning); border-color: rgba(242,192,99,0.24); }
+.gm-streak.danger { color: var(--danger); border-color: rgba(255,107,107,0.28); }
+.bar {
+  height: 12px; border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%; width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--success), var(--warning), var(--danger));
+  transition: width 0.25s ease;
+}
+.hint { margin-top: 10px; color: var(--text-tertiary); font-size: 12px; line-height: 1.45; }
+.form-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) 92px 120px auto;
+  gap: 8px; align-items: stretch;
+}
+.drink-field {
+  position: relative;
+  min-width: 0;
+}
+.gm-input, .gm-select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 14px; outline: none;
+}
+.gm-input:focus, .gm-select:focus { border-color: rgba(255,255,255,0.22); background: rgba(0,0,0,0.36); }
+.drink-menu {
+  position: absolute;
+  left: 0; right: 0; top: calc(100% + 6px);
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  background: rgba(15, 15, 18, 0.98);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.48);
+}
+.drink-menu[hidden] { display: none; }
+.drink-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 11px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.drink-option:hover,
+.drink-option.is-active { background: rgba(255,255,255,0.07); }
+.drink-option-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drink-option-meta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drink-option-mg {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 850;
+}
+.drink-option-empty {
+  padding: 12px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-style: italic;
+}
+.gm-add {
+  padding: 11px 18px; border: 0; border-radius: 12px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 800;
+  cursor: pointer;
+}
+.gm-ghost {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px; background: rgba(255,255,255,0.04);
+  color: var(--text-primary); font-family: inherit;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.list { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: grid; grid-template-columns: 1fr auto auto;
+  gap: 10px; align-items: center;
+  padding: 12px 14px; margin-bottom: 8px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+}
+.row-name { color: var(--text-primary); font-weight: 700; }
+.row-meta { margin-top: 3px; font-size: 12px; color: var(--text-tertiary); }
+.row-mg {
+  font-family: var(--font-mono); color: var(--accent);
+  font-weight: 800; font-size: 13px; white-space: nowrap;
+}
+.row-del {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 18px; cursor: pointer; padding: 0 4px;
+}
+.empty {
+  text-align: center; font-size: 12px; font-style: italic;
+  color: var(--text-tertiary); padding: 14px 0;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.stat {
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; padding: 14px;
+}
+.stat-num {
+  font-family: var(--font-mono);
+  font-size: 18px; font-weight: 800;
+  color: var(--text-primary); line-height: 1.15;
+}
+.stat-label {
+  margin-top: 6px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.source-note {
+  color: var(--text-tertiary);
+  font-size: 11px; line-height: 1.45;
+}
+.caf-chart-wrap {
+  position: relative;
+  padding: 14px 16px 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 12px;
+  min-height: 286px;
+}
+.caf-chart-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 8px;
+  font-size: 10px; font-weight: 800;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+.caf-chart-label { color: var(--text-tertiary); }
+.caf-chart-delta {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.caf-chart-svg {
+  display: block;
+  width: 100%;
+  height: 190px;
+  overflow: visible;
+}
+.caf-chart-grid {
+  stroke: rgba(255,255,255,0.05);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  vector-effect: non-scaling-stroke;
+}
+.caf-chart-axis {
+  stroke: rgba(255,255,255,0.08);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.caf-chart-area { fill: url(#cafAreaGradient); opacity: 0.95; }
+.caf-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 10px rgba(192,132,252,0.28));
+}
+.caf-chart-now {
+  stroke: rgba(250,250,250,0.22);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+  vector-effect: non-scaling-stroke;
+}
+.caf-chart-marker {
+  fill: var(--accent);
+  stroke: #111113;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 12px rgba(192,132,252,0.42));
+}
+.caf-chart-empty {
+  position: absolute;
+  inset: 44px 16px 74px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.caf-chart-wrap.has-data .caf-chart-empty { display: none; }
+.caf-chart-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+.caf-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 4px 6px;
+}
+.caf-stat-label {
+  font-size: 9px; letter-spacing: 0.16em; font-weight: 800;
+  text-transform: uppercase; color: var(--text-tertiary);
+  font-family: var(--font-mono);
+}
+.caf-stat-val {
+  font-size: 13px; font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 820px) {
+  .grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr 84px; }
+  .form-grid .gm-select, .form-grid .gm-add { grid-column: span 1; }
+  .caf-chart-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  body { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .dash-title { font-size: 22px; }
+  .gm-card { padding: 16px; }
+  .gm-progress-num { font-size: 40px; }
+  .form-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="page-head">
+    <h1 class="dash-title">Caffeine</h1>
+    <a class="back-link" href="index.html">← Hub</a>
+  </div>
+
+  <section class="grid">
+    <div>
+      <div class="section-title">Today</div>
+      <div class="gm-card">
+        <div class="gm-header">
+          <div>
+            <div class="gm-eyebrow">Daily Intake</div>
+            <div class="gm-progress-row">
+              <span class="gm-progress-num" id="totalMg">0</span>
+              <span class="gm-progress-total">mg</span>
+            </div>
+          </div>
+          <span class="gm-streak" id="riskPill">loading</span>
+        </div>
+        <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+        <div class="hint" id="limitText">Syncing your profile...</div>
+      </div>
+
+      <div class="section-title">Log Drink</div>
+      <div class="gm-card">
+        <div class="form-grid">
+          <div class="drink-field">
+            <input class="gm-input" id="drinkSearch" placeholder="Search coffee, tea, soda, energy drink..." autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="drinkMenu">
+            <div class="drink-menu" id="drinkMenu" hidden></div>
+          </div>
+          <input class="gm-input" id="drinkMg" type="number" min="0" step="1" inputmode="numeric" placeholder="mg">
+          <select class="gm-select" id="drinkSize" aria-label="Serving size">
+            <option value="1">1 serving</option>
+            <option value="0.5">1/2 serving</option>
+            <option value="1.5">1.5 servings</option>
+            <option value="2">2 servings</option>
+          </select>
+          <button class="gm-add" id="addDrink" type="button">Add</button>
+        </div>
+        <div class="hint">Pick a drink from the menu, or type a custom drink and enter its caffeine mg.</div>
+      </div>
+
+      <div class="section-title">Log</div>
+      <div class="gm-card">
+        <ul class="list" id="logList"></ul>
+      </div>
+    </div>
+
+    <aside>
+      <div class="section-title">Timing</div>
+      <div class="gm-card">
+        <div class="caf-chart-wrap" id="cafChartWrap">
+          <div class="caf-chart-head">
+            <span class="caf-chart-label">Caffeine curve</span>
+            <span class="caf-chart-delta" id="cafChartDelta">0mg now</span>
+          </div>
+          <svg class="caf-chart-svg" id="cafChartSvg" viewBox="0 0 600 190" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="cafAreaGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#C084FC" stop-opacity="0.28"/>
+                <stop offset="72%" stop-color="#C084FC" stop-opacity="0.07"/>
+                <stop offset="100%" stop-color="#C084FC" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line class="caf-chart-grid" x1="0" x2="600" y1="38" y2="38"/>
+            <line class="caf-chart-grid" x1="0" x2="600" y1="88" y2="88"/>
+            <line class="caf-chart-grid" x1="0" x2="600" y1="138" y2="138"/>
+            <line class="caf-chart-axis" x1="0" x2="600" y1="170" y2="170"/>
+            <line class="caf-chart-now" id="cafNowLine" x1="0" x2="0" y1="18" y2="170"/>
+            <path class="caf-chart-area" id="cafChartArea" d=""/>
+            <path class="caf-chart-line" id="cafChartLine" d=""/>
+            <circle class="caf-chart-marker" id="cafPeakMarker" cx="0" cy="0" r="5"/>
+          </svg>
+          <div class="caf-chart-empty" id="cafChartEmpty">Log a caffeinated drink to see your peak, taper, and clearance curve.</div>
+          <div class="caf-chart-stats">
+            <div class="caf-stat"><span class="caf-stat-label">Peak</span><span class="caf-stat-val" id="peakTime">--</span></div>
+            <div class="caf-stat"><span class="caf-stat-label">Come Down</span><span class="caf-stat-val" id="comeDownTime">--</span></div>
+            <div class="caf-stat"><span class="caf-stat-label">Cleared</span><span class="caf-stat-val" id="clearTime">--</span></div>
+            <div class="caf-stat"><span class="caf-stat-label">Active</span><span class="caf-stat-val" id="activeMg">0mg</span></div>
+          </div>
+        </div>
+        <div class="hint" id="timingHint"></div>
+      </div>
+
+      <div class="section-title">Your Context</div>
+      <div class="gm-card">
+        <div class="stat-grid">
+          <div class="stat"><div class="stat-num" id="profileStat">--</div><div class="stat-label">Profile</div></div>
+          <div class="stat"><div class="stat-num" id="waterStat">--</div><div class="stat-label">Water Today</div></div>
+        </div>
+        <div class="hint" id="suppHint">Reading supplements...</div>
+      </div>
+
+      <div class="section-title">Notes</div>
+      <div class="gm-card">
+        <div class="source-note">
+          Drink caffeine varies by brand, roast, brew time, and serving size. The tracker uses common reference values and lets you override mg for custom drinks.
+        </div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const STORE_KEY = 'caffeine_tracker_v1';
+  const WATER_KEY = 'po_water_v1';
+  const HALF_LIFE_HOURS = 5;
+  const CLEAR_THRESHOLD_MG = 5;
+
+  const DRINKS = [
+    { name: 'Brewed coffee', mg: 96, size: '8 oz / 237 ml', group: 'Coffee' },
+    { name: 'Large brewed coffee', mg: 192, size: '16 oz / 474 ml', group: 'Coffee' },
+    { name: 'Espresso', mg: 63, size: '1 oz / 30 ml', group: 'Coffee' },
+    { name: 'Double espresso', mg: 126, size: '2 oz / 60 ml', group: 'Coffee' },
+    { name: 'Instant coffee', mg: 62, size: '8 oz / 237 ml', group: 'Coffee' },
+    { name: 'Decaf coffee', mg: 1, size: '8 oz / 237 ml', group: 'Coffee' },
+    { name: 'Cold brew coffee', mg: 155, size: '12 oz / 355 ml', group: 'Coffee' },
+    { name: 'Latte', mg: 63, size: 'single shot', group: 'Coffee' },
+    { name: 'Cappuccino', mg: 63, size: 'single shot', group: 'Coffee' },
+    { name: 'Flat white', mg: 126, size: 'double shot', group: 'Coffee' },
+    { name: 'Mocha', mg: 95, size: '12 oz / 355 ml', group: 'Coffee' },
+    { name: 'Black tea', mg: 48, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Green tea', mg: 29, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Oolong tea', mg: 38, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'White tea', mg: 28, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Matcha', mg: 70, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Chai tea', mg: 48, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Bottled black tea', mg: 26, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Cola', mg: 33, size: '8 oz / 237 ml', group: 'Soda' },
+    { name: 'Cola can', mg: 46, size: '12 oz / 355 ml', group: 'Soda' },
+    { name: 'Diet cola can', mg: 46, size: '12 oz / 355 ml', group: 'Soda' },
+    { name: 'Caffeinated citrus soda', mg: 54, size: '12 oz / 355 ml', group: 'Soda' },
+    { name: 'Dr Pepper style soda', mg: 41, size: '12 oz / 355 ml', group: 'Soda' },
+    { name: 'Energy drink', mg: 79, size: '8 oz / 237 ml', group: 'Energy' },
+    { name: 'Energy drink can', mg: 160, size: '16 oz / 473 ml', group: 'Energy' },
+    { name: 'Energy shot', mg: 200, size: '2 oz / 60 ml', group: 'Energy' },
+    { name: 'Pre-workout scoop', mg: 200, size: '1 scoop', group: 'Supplements' },
+    { name: 'Caffeine tablet', mg: 200, size: '1 tablet', group: 'Supplements' },
+    { name: 'Yerba mate', mg: 80, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Kombucha', mg: 15, size: '8 oz / 237 ml', group: 'Tea' },
+    { name: 'Hot chocolate', mg: 5, size: '8 oz / 237 ml', group: 'Other' },
+    { name: 'Dark chocolate', mg: 24, size: '1 oz / 28 g', group: 'Other' }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const drinkSearch = $('drinkSearch');
+  const drinkMg = $('drinkMg');
+  const drinkMenu = $('drinkMenu');
+  let activeDrinkIndex = 0;
+  let menuMatches = [];
+
+  function dateKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function todayKey() { return dateKey(new Date()); }
+  function loadData() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      parsed.logs = parsed.logs && typeof parsed.logs === 'object' ? parsed.logs : {};
+      return parsed;
+    } catch (e) { return { logs: {} }; }
+  }
+  function saveData(data) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function loadWater() {
+    try { return JSON.parse(localStorage.getItem(WATER_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveWaterCaffeine(totalMg) {
+    const water = loadWater();
+    water.profile = water.profile || {};
+    water.logs = water.logs && typeof water.logs === 'object' ? water.logs : {};
+    water.substances = Array.isArray(water.substances) ? water.substances : [];
+    water.caffeineMgPerDay = totalMg;
+    try { localStorage.setItem(WATER_KEY, JSON.stringify(water)); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('po-water-sync')); } catch (e) {}
+    try {
+      const channel = new BroadcastChannel(WATER_KEY);
+      channel.postMessage({ key: WATER_KEY, t: Date.now() });
+      channel.close();
+    } catch (e) {}
+  }
+  function getTodayEntries() {
+    const data = loadData();
+    const arr = data.logs[todayKey()];
+    return Array.isArray(arr) ? arr : [];
+  }
+  function setTodayEntries(entries) {
+    const data = loadData();
+    data.logs[todayKey()] = entries;
+    saveData(data);
+    saveWaterCaffeine(totalMg(entries));
+  }
+  function totalMg(entries) {
+    return entries.reduce((sum, e) => sum + (Number(e.mg) || 0), 0);
+  }
+  function formatTime(ts) {
+    if (!ts) return '--';
+    return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  function amountFromEntryAt(entry, at) {
+    const mg = Number(entry.mg) || 0;
+    const peakTs = entry.ts + 45 * 60000;
+    if (at < entry.ts) return 0;
+    if (at < peakTs) {
+      const t = (at - entry.ts) / (peakTs - entry.ts);
+      return mg * Math.max(0, Math.min(1, t));
+    }
+    const elapsed = Math.max(0, (at - peakTs) / 3600000);
+    return mg * Math.pow(0.5, elapsed / HALF_LIFE_HOURS);
+  }
+  function activeAmount(entries, at) {
+    return entries.reduce((sum, e) => sum + amountFromEntryAt(e, at), 0);
+  }
+  function clearanceTime(entry) {
+    const mg = Math.max(0, Number(entry.mg) || 0);
+    if (mg <= CLEAR_THRESHOLD_MG) return entry.ts;
+    const hours = Math.log(CLEAR_THRESHOLD_MG / mg) / Math.log(0.5) * HALF_LIFE_HOURS;
+    return entry.ts + 45 * 60000 + hours * 3600000;
+  }
+  function renderChart(entries) {
+    const wrap = $('cafChartWrap');
+    const line = $('cafChartLine');
+    const area = $('cafChartArea');
+    const marker = $('cafPeakMarker');
+    const nowLine = $('cafNowLine');
+    const delta = $('cafChartDelta');
+    const now = Date.now();
+    const activeNow = activeAmount(entries, now);
+    delta.textContent = Math.round(activeNow) + 'mg now';
+    wrap.classList.toggle('has-data', entries.length > 0);
+    if (!entries.length) {
+      line.setAttribute('d', '');
+      area.setAttribute('d', '');
+      marker.setAttribute('r', '0');
+      nowLine.setAttribute('x1', '0');
+      nowLine.setAttribute('x2', '0');
+      return;
+    }
+    const firstTs = Math.min.apply(null, entries.map((e) => e.ts));
+    const clearTs = Math.max.apply(null, entries.map(clearanceTime));
+    const startTs = Math.min(firstTs, now);
+    const endTs = Math.max(now + 6 * 3600000, clearTs, startTs + 8 * 3600000);
+    const pointCount = 56;
+    const samples = [];
+    for (let i = 0; i < pointCount; i++) {
+      const ts = startTs + (endTs - startTs) * (i / (pointCount - 1));
+      samples.push({ ts, mg: activeAmount(entries, ts) });
+    }
+    const maxMg = Math.max(50, Math.max.apply(null, samples.map((p) => p.mg)) * 1.18);
+    const xFor = (ts) => (ts - startTs) / (endTs - startTs) * 600;
+    const yFor = (mg) => 170 - Math.min(1, mg / maxMg) * 150;
+    const path = samples.map((p, i) => {
+      const cmd = i === 0 ? 'M' : 'L';
+      return cmd + xFor(p.ts).toFixed(1) + ' ' + yFor(p.mg).toFixed(1);
+    }).join(' ');
+    const areaPath = path + ' L600 170 L0 170 Z';
+    line.setAttribute('d', path);
+    area.setAttribute('d', areaPath);
+    const peak = samples.reduce((best, p) => p.mg > best.mg ? p : best, samples[0]);
+    marker.setAttribute('r', '5');
+    marker.setAttribute('cx', xFor(peak.ts).toFixed(1));
+    marker.setAttribute('cy', yFor(peak.mg).toFixed(1));
+    const nowX = xFor(now).toFixed(1);
+    nowLine.setAttribute('x1', nowX);
+    nowLine.setAttribute('x2', nowX);
+  }
+  function profileLimit(water) {
+    const profile = water.profile || {};
+    const age = Number(profile.age) || 0;
+    const weightKg = Number(profile.weightKg) || 75;
+    if (age && age < 18) return { limit: 100, note: 'Under 18 profile: conservative limit shown.' };
+    return { limit: Math.min(400, Math.round(weightKg * 5.7)), note: Math.round(weightKg) + 'kg profile · adult cap 400mg' };
+  }
+  function waterCount(water) {
+    const logs = water.logs || {};
+    return logs[todayKey()] || 0;
+  }
+  function stackNotes() {
+    let items = [];
+    try { items = JSON.parse(localStorage.getItem('stack:items') || '[]'); } catch (e) {}
+    if (!Array.isArray(items)) items = [];
+    const names = items.map((i) => String(i.name || '').toLowerCase());
+    const notes = [];
+    if (names.some((n) => n.includes('caffeine'))) notes.push('Caffeine is also in your supplement stack.');
+    if (names.some((n) => n.includes('theanine'))) notes.push('L-theanine appears in your stack; many people pair it with caffeine.');
+    if (names.some((n) => n.includes('pre') || n.includes('workout'))) notes.push('Check pre-workout labels for extra caffeine.');
+    return notes.length ? notes.join(' ') : 'No caffeine-related supplement flags found.';
+  }
+  function riskLabel(total, limit) {
+    if (total <= 0) return { text: 'no caffeine', cls: '' };
+    if (total > limit) return { text: 'too much', cls: 'danger' };
+    if (total > limit * 0.75) return { text: 'near limit', cls: 'warn' };
+    return { text: 'in range', cls: '' };
+  }
+  function render() {
+    const entries = getTodayEntries().sort((a, b) => b.ts - a.ts);
+    const water = loadWater();
+    const limitInfo = profileLimit(water);
+    const total = totalMg(entries);
+    const risk = riskLabel(total, limitInfo.limit);
+    $('totalMg').textContent = Math.round(total);
+    $('barFill').style.width = Math.min(100, total / limitInfo.limit * 100) + '%';
+    $('riskPill').textContent = risk.text;
+    $('riskPill').className = 'gm-streak ' + risk.cls;
+    $('limitText').textContent = limitInfo.note + ' · daily guide: ' + limitInfo.limit + 'mg.';
+    const now = Date.now();
+    $('activeMg').textContent = Math.round(activeAmount(entries, now)) + 'mg';
+    renderChart(entries);
+    const last = entries[0];
+    if (last) {
+      $('peakTime').textContent = formatTime(last.ts + 45 * 60000);
+      $('comeDownTime').textContent = formatTime(last.ts + HALF_LIFE_HOURS * 3600000);
+      $('clearTime').textContent = formatTime(Math.max.apply(null, entries.map(clearanceTime)));
+      $('timingHint').textContent = 'Peak estimate uses ~45 minutes; come down uses a 5 hour half-life; cleared means below about 5mg active.';
+    } else {
+      $('peakTime').textContent = '--';
+      $('comeDownTime').textContent = '--';
+      $('clearTime').textContent = '--';
+      $('timingHint').textContent = 'Log a drink to calculate peak, come down, and clearance windows.';
+    }
+    const p = water.profile || {};
+    $('profileStat').textContent = (p.heightCm ? Math.round(p.heightCm) + 'cm · ' : '') + (p.weightKg ? Math.round(p.weightKg) + 'kg' : '--');
+    $('waterStat').textContent = waterCount(water) + ' drinks';
+    $('suppHint').textContent = stackNotes();
+
+    const list = $('logList');
+    list.innerHTML = '';
+    if (!entries.length) {
+      const empty = document.createElement('li');
+      empty.className = 'empty';
+      empty.textContent = 'No caffeine logged today.';
+      list.appendChild(empty);
+      return;
+    }
+    entries.forEach((entry) => {
+      const li = document.createElement('li');
+      li.className = 'row';
+      const body = document.createElement('div');
+      body.innerHTML = '<div class="row-name"></div><div class="row-meta"></div>';
+      body.querySelector('.row-name').textContent = entry.name;
+      body.querySelector('.row-meta').textContent = formatTime(entry.ts) + ' · peaks ' + formatTime(entry.ts + 45 * 60000) + ' · clears ' + formatTime(clearanceTime(entry));
+      const mg = document.createElement('div');
+      mg.className = 'row-mg';
+      mg.textContent = Math.round(entry.mg) + 'mg';
+      const del = document.createElement('button');
+      del.className = 'row-del';
+      del.type = 'button';
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        setTodayEntries(entries.filter((x) => x.id !== entry.id));
+        render();
+      });
+      li.append(body, mg, del);
+      list.appendChild(li);
+    });
+  }
+  function drinkHaystack(drink) {
+    return [
+      drink.name,
+      drink.group,
+      drink.size,
+      drink.name.replace(/\s+/g, ''),
+      drink.name.replace(/coffee/i, 'cafe')
+    ].join(' ').toLowerCase();
+  }
+  function getDrinkMatches(query) {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return DRINKS.slice(0, 10);
+    const terms = q.split(/\s+/).filter(Boolean);
+    return DRINKS
+      .filter((drink) => {
+        const hay = drinkHaystack(drink);
+        return terms.every((term) => hay.indexOf(term) !== -1);
+      })
+      .slice(0, 10);
+  }
+  function closeDrinkMenu() {
+    drinkMenu.hidden = true;
+    drinkSearch.setAttribute('aria-expanded', 'false');
+  }
+  function renderDrinkMenu() {
+    menuMatches = getDrinkMatches(drinkSearch.value);
+    if (activeDrinkIndex >= menuMatches.length) activeDrinkIndex = 0;
+    drinkMenu.innerHTML = '';
+    if (!menuMatches.length) {
+      const empty = document.createElement('div');
+      empty.className = 'drink-option-empty';
+      empty.textContent = 'No match. Enter caffeine mg to add it as custom.';
+      drinkMenu.appendChild(empty);
+    } else {
+      menuMatches.forEach((drink, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'drink-option' + (idx === activeDrinkIndex ? ' is-active' : '');
+        btn.innerHTML =
+          '<span><span class="drink-option-name"></span><span class="drink-option-meta"></span></span>' +
+          '<span class="drink-option-mg"></span>';
+        btn.querySelector('.drink-option-name').textContent = drink.name;
+        btn.querySelector('.drink-option-meta').textContent = drink.group + ' · ' + drink.size;
+        btn.querySelector('.drink-option-mg').textContent = drink.mg + 'mg';
+        btn.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          pickDrink(drink);
+        });
+        drinkMenu.appendChild(btn);
+      });
+    }
+    drinkMenu.hidden = false;
+    drinkSearch.setAttribute('aria-expanded', 'true');
+  }
+  function pickDrink(drink) {
+    drinkSearch.value = drink.name;
+    drinkMg.value = String(drink.mg);
+    activeDrinkIndex = 0;
+    closeDrinkMenu();
+  }
+  function selectedDrink() {
+    const name = drinkSearch.value.trim();
+    const found = DRINKS.find((d) => d.name.toLowerCase() === name.toLowerCase());
+    const servings = Number($('drinkSize').value) || 1;
+    const mgInput = Number(drinkMg.value);
+    const mg = (mgInput > 0 ? mgInput : (found ? found.mg : 0)) * servings;
+    return { name: name || (found && found.name) || 'Custom caffeine', mg };
+  }
+  drinkSearch.addEventListener('focus', () => {
+    activeDrinkIndex = 0;
+    renderDrinkMenu();
+  });
+  drinkSearch.addEventListener('input', () => {
+    activeDrinkIndex = 0;
+    const name = drinkSearch.value.trim().toLowerCase();
+    const found = DRINKS.find((d) => d.name.toLowerCase() === name);
+    if (found) drinkMg.value = String(found.mg);
+    renderDrinkMenu();
+  });
+  $('addDrink').addEventListener('click', () => {
+    const drink = selectedDrink();
+    if (!drink.mg) {
+      drinkMg.focus();
+      return;
+    }
+    const entries = getTodayEntries();
+    entries.push({
+      id: 'caf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name: drink.name,
+      mg: Math.round(drink.mg),
+      ts: Date.now()
+    });
+    setTodayEntries(entries);
+    drinkSearch.value = '';
+    drinkMg.value = '';
+    $('drinkSize').value = '1';
+    closeDrinkMenu();
+    render();
+  });
+  drinkSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (drinkMenu.hidden) renderDrinkMenu();
+      else {
+        activeDrinkIndex = Math.min(activeDrinkIndex + 1, Math.max(0, menuMatches.length - 1));
+        renderDrinkMenu();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeDrinkIndex = Math.max(activeDrinkIndex - 1, 0);
+      renderDrinkMenu();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!drinkMenu.hidden && menuMatches[activeDrinkIndex]) pickDrink(menuMatches[activeDrinkIndex]);
+      else $('addDrink').click();
+    } else if (e.key === 'Escape') {
+      closeDrinkMenu();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!drinkMenu.contains(e.target) && e.target !== drinkSearch) closeDrinkMenu();
+  });
+  if (window.initCloudSync) {
+    window.initCloudSync({
+      appKey: 'caffeine',
+      syncedKeys: [STORE_KEY],
+      onApplied: () => {
+        saveWaterCaffeine(totalMg(getTodayEntries()));
+        render();
+      }
+    });
+  }
+  window.addEventListener('storage', (e) => {
+    if (!e || e.key === STORE_KEY || e.key === WATER_KEY || e.key === 'stack:items') render();
+  });
+  window.addEventListener('po-water-sync', render);
+  render();
+  setInterval(render, 60000);
+})();
+</script>
+</body>
+</html>
